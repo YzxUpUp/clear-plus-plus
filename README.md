@@ -8,6 +8,7 @@ Clear++ 是一款原生 macOS 应用卸载工具，可以查看软件及关联�
 
 - 扫描独立应用、App Store 应用、通过 `.pkg` 安装的软件和 Homebrew 软件包，分别显示程序文件和关联文件的占用。
 - 按名称搜索，可同时筛选多个安装来源，并按名称或磁盘占用排序。
+- 初始默认来源为独立应用、App Store 和安装包应用，可在「设置 → 默认安装来源」修改。列表中的临时筛选可随时切回默认组合。
 - 卸载前二次确认，可逐项检查和取消勾选偏好设置、缓存、日志及应用支持数据。普通应用和勾选的关联文件会移到废纸篓。
 - 支持浅色、深色和跟随系统，默认跟随系统。应用界面为简体中文。
 
@@ -35,6 +36,7 @@ Clear++ is a native macOS app uninstaller that shows how much disk space apps an
 
 - Scan standalone apps, App Store apps, software installed from `.pkg` installers, and Homebrew packages. See separate disk usage figures for program files and related files.
 - Search by name, filter by multiple installation sources at once, and sort by name or disk usage.
+- The initial filter shows standalone apps, App Store apps, and apps installed from `.pkg` installers. Change the default in **Settings → Default Installation Sources**. You can reapply it after temporarily changing the list filter.
 - Review preferences, caches, logs, and application support data before confirming an uninstall. Deselect any related files you want to keep. Regular apps and selected related files are moved to the Trash.
 - Choose Light, Dark, or System appearance. The default follows your system setting. The app interface is in Simplified Chinese.
 

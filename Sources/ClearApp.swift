@@ -3,6 +3,25 @@ import SwiftUI
 
 private typealias ViewState<Value> = SwiftUI.State<Value>
 
+private struct SourceCheckbox: View {
+    let source: Source
+    @Binding var sources: Set<Source>
+
+    var body: some View {
+        Toggle(source.title, isOn: Binding(
+            get: { sources.contains(source) },
+            set: { isSelected in
+                if isSelected {
+                    sources.insert(source)
+                } else {
+                    sources.remove(source)
+                }
+            }
+        ))
+        .toggleStyle(.checkbox)
+    }
+}
+
 enum Appearance: String, CaseIterable, Identifiable {
     case system = "跟随系统"
     case light = "浅色"
@@ -37,11 +56,12 @@ enum Ordering: String, CaseIterable, Identifiable {
 @main
 struct ClearApp: App {
     @AppStorage("appearance") private var appearance: Appearance = .system
+    @AppStorage("defaultSourceFilter") private var defaultSourceFilter = SourceFilter.initial
     @StateObject private var model = InventoryModel()
 
     var body: some Scene {
         Window("Clear++", id: "inventory") {
-            InventoryView(model: model, appearance: $appearance)
+            InventoryView(model: model, appearance: $appearance, defaultSources: defaultSourceFilter.sources)
                 .preferredColorScheme(appearance.scheme)
                 .frame(minWidth: 780, minHeight: 540)
         }
@@ -66,9 +86,31 @@ struct ClearApp: App {
                     }
                 }
                 .pickerStyle(.segmented)
+
+                Section {
+                    let sources = Binding(
+                        get: { defaultSourceFilter.sources },
+                        set: { defaultSourceFilter = SourceFilter(sources: $0) }
+                    )
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Source.allCases, id: \.self) { source in
+                            SourceCheckbox(source: source, sources: sources)
+                        }
+                    }
+                    HStack {
+                        Button("设为全部来源") { defaultSourceFilter = SourceFilter(sources: []) }
+                            .disabled(defaultSourceFilter.sources.isEmpty)
+                        Button("恢复初始默认") { defaultSourceFilter = .initial }
+                            .disabled(defaultSourceFilter == .initial)
+                    }
+                } header: {
+                    Text("默认安装来源")
+                } footer: {
+                    Text("打开列表时使用。全部取消勾选会显示全部来源。")
+                }
             }
             .formStyle(.grouped)
-            .frame(width: 400, height: 105)
+            .frame(width: 440, height: 350)
             .preferredColorScheme(appearance.scheme)
         }
     }
@@ -174,13 +216,19 @@ final class InventoryModel: ObservableObject {
 struct InventoryView: View {
     @ObservedObject var model: InventoryModel
     @Binding var appearance: Appearance
+    let defaultSources: Set<Source>
     @AppStorage("ordering") private var ordering: Ordering = .sizeDescending
     @ViewState private var search = ""
-    @ViewState private var selectedSources: Set<Source> = []
+    @ViewState private var sourceOverride: Set<Source>?
     @ViewState private var showingSourceFilters = false
     @ViewState private var selectedID: String?
     @ViewState private var plan: UninstallPlan?
     @FocusState private var searchFocused: Bool
+
+    private var selectedSources: Set<Source> {
+        get { sourceOverride ?? defaultSources }
+        nonmutating set { sourceOverride = newValue == defaultSources ? nil : newValue }
+    }
 
     private var records: [AppRecord] {
         let term = search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -211,7 +259,7 @@ struct InventoryView: View {
 
     private var sourceLabel: String {
         if selectedSources.isEmpty { return "全部来源" }
-        if selectedSources.count == 1, let source = selectedSources.first { return source.rawValue }
+        if selectedSources.count == 1, let source = selectedSources.first { return source.title }
         return "已选 \(selectedSources.count) 个来源"
     }
 
@@ -227,6 +275,7 @@ struct InventoryView: View {
             footer
         }
         .onAppear { if !model.scanned { model.refresh() } }
+        .onChange(of: defaultSources) { _, _ in sourceOverride = nil }
         .onChange(of: records.map(\.id)) { _, ids in
             if !ids.contains(selectedID ?? "") { selectedID = ids.first }
         }
@@ -318,29 +367,22 @@ struct InventoryView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("安装来源").font(.headline)
                 ForEach(sources, id: \.self) { source in
-                    Toggle(source.rawValue, isOn: selection(for: source))
-                        .toggleStyle(.checkbox)
+                    SourceCheckbox(source: source, sources: Binding(
+                        get: { selectedSources },
+                        set: { selectedSources = $0 }
+                    ))
                 }
                 Divider()
-                Button("恢复全部来源") { selectedSources.removeAll() }
-                    .disabled(selectedSources.isEmpty)
+                HStack {
+                    Button("显示全部来源") { selectedSources = [] }
+                        .disabled(selectedSources.isEmpty)
+                    Button("应用默认来源") { sourceOverride = nil }
+                        .disabled(sourceOverride == nil)
+                }
             }
             .frame(minWidth: 180, alignment: .leading)
             .padding(14)
         }
-    }
-
-    private func selection(for source: Source) -> Binding<Bool> {
-        Binding(
-            get: { selectedSources.contains(source) },
-            set: { isSelected in
-                if isSelected {
-                    selectedSources.insert(source)
-                } else {
-                    selectedSources.remove(source)
-                }
-            }
-        )
     }
 
     private var results: some View {
@@ -359,7 +401,7 @@ struct InventoryView: View {
                         if filtering {
                             Button("清除筛选") {
                                 search = ""
-                                selectedSources.removeAll()
+                                selectedSources = []
                             }
                         }
                     }
@@ -382,7 +424,7 @@ struct InventoryView: View {
                             ProgramIcon(record: record, size: 34)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(record.name).font(.body.weight(.medium)).lineLimit(1)
-                                Text(record.source.rawValue + (record.version.isEmpty ? "" : " · " + record.version))
+                                Text(record.source.title + (record.version.isEmpty ? "" : " · " + record.version))
                                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer()
@@ -477,7 +519,7 @@ struct DetailView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(record.name).font(.title3.weight(.semibold))
                                 .lineLimit(3).fixedSize(horizontal: false, vertical: true)
-                            Text(record.source.rawValue).font(.caption).foregroundStyle(.secondary)
+                            Text(record.source.title).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 0)
                     }

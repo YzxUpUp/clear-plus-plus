@@ -2,12 +2,23 @@ import Darwin
 import Foundation
 
 enum Source: String, CaseIterable, Sendable {
-    case application = "独立应用"
-    case appStore = "App Store"
-    case installer = "安装包应用"
-    case cask = "Homebrew Cask"
-    case formula = "Homebrew Formula"
-    case receipt = "安装包组件"
+    case application
+    case appStore
+    case installer
+    case cask
+    case formula
+    case receipt
+
+    var title: String {
+        switch self {
+        case .application: "独立应用"
+        case .appStore: "App Store"
+        case .installer: "安装包应用"
+        case .cask: "Homebrew Cask"
+        case .formula: "Homebrew Formula"
+        case .receipt: "安装包组件"
+        }
+    }
 
     var symbol: String {
         switch self {
@@ -15,6 +26,25 @@ enum Source: String, CaseIterable, Sendable {
         case .cask, .formula: "shippingbox"
         case .receipt: "puzzlepiece.extension"
         }
+    }
+}
+
+struct SourceFilter: RawRepresentable, Equatable {
+    static let initial = SourceFilter(sources: [.application, .appStore, .installer])
+    let sources: Set<Source>
+
+    init(sources: Set<Source>) {
+        self.sources = sources
+    }
+
+    init?(rawValue: String) {
+        let sources = Set(rawValue.split(separator: ",").compactMap { Source(rawValue: String($0)) })
+        guard rawValue.isEmpty || !sources.isEmpty else { return nil }
+        self.init(sources: sources)
+    }
+
+    var rawValue: String {
+        Source.allCases.filter { sources.contains($0) }.map(\.rawValue).joined(separator: ",")
     }
 }
 
